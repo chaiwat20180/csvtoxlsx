@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSV to XLSX Pro — แปลงไฟล์ CSV เป็น Excel ภาษาไทยไม่เพี้ยน</title>
+
+  <!-- Google Fonts: Prompt & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Prompt', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            excel: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- PapaParse (CSV Parser) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <!-- SheetJS (XLSX Generator) -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+
+  <!-- JSZip (Batch ZIP Downloader) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <style>
+    body {
+      background-color: #f8fafc;
+      background-image:
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 50%);
+      min-height: 100vh;
+    }
+
+    .dropzone-active {
+      border-color: #4f46e5 !important;
+      background-color: rgba(238, 242, 255, 0.85) !important;
+      transform: scale(1.01);
+      box-shadow: 0 20px 25px -5px rgba(79, 70, 229, 0.12), 0 8px 10px -6px rgba(79, 70, 229, 0.08);
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .animate-pulse-subtle {
+      animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes dropdownIn {
+      from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .dropdown-animate {
+      animation: dropdownIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-indigo-100 selection:text-indigo-800">
+
+  <!-- Full-Window Drag & Drop Overlay -->
+  <div id="globalDropOverlay" class="fixed inset-0 z-50 hidden bg-indigo-950/60 backdrop-blur-sm flex items-center justify-center p-6 pointer-events-none transition-opacity duration-150">
+    <div class="bg-white/95 border-2 border-dashed border-indigo-500 rounded-3xl p-8 sm:p-10 max-w-md w-full text-center shadow-2xl transform scale-100">
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4">
+        <i data-lucide="file-down" class="w-8 h-8"></i>
+      </div>
+      <h3 class="text-xl font-bold text-slate-900 mb-1">ปล่อยไฟล์ CSV ที่นี่ได้เลย</h3>
+      <p class="text-sm text-slate-500">รองรับการวางพร้อมกันหลายไฟล์เพื่อแปลงเป็น XLSX ทันที</p>
+    </div>
+  </div>
+
+  <!-- Navbar / Header -->
+  <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200/80">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-emerald-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
+          <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-base sm:text-lg text-slate-900 tracking-tight leading-none truncate">CSV to XLSX <span class="text-indigo-600">Pro</span></h1>
+            <span class="text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">Client-Side</span>
+          </div>
+          <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 truncate">แปลงไฟล์ CSV เป็น Excel ภาษาไทยคมชัด ไม่มีเพี้ยน</p>
+        </div>
+      </div>
+
+      <div class="hidden md:flex items-center gap-2 text-xs text-slate-500 bg-slate-100/80 px-3 py-1.5 rounded-lg border border-slate-200/60 shrink-0">
+        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+        <span>ปลอดภัย ประมวลผลบนเครื่องคุณทั้งหมด</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+
+    <!-- Drag & Drop Upload Zone -->
+    <section>
+      <div
+        id="dropZone"
+        role="button"
+        tabindex="0"
+        class="relative group border-2 border-dashed border-slate-300 hover:border-indigo-400 active:border-indigo-500 bg-white/90 hover:bg-indigo-50/30 rounded-2xl p-6 sm:p-10 text-center cursor-pointer transition-all duration-200 shadow-sm"
+      >
+        <input
+          type="file"
+          id="fileInput"
+          accept=".csv,.txt,text/csv,text/plain,application/vnd.ms-excel,application/csv"
+          multiple
+          class="hidden"
+        />
+
+        <!-- pointer-events-none prevents child elements from triggering dragleave -->
+        <div class="pointer-events-none flex flex-col items-center justify-center max-w-lg mx-auto">
+          <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-indigo-50 group-hover:bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4 transition-transform duration-200 group-hover:-translate-y-1 shadow-inner">
+            <i data-lucide="upload-cloud" class="w-7 h-7 sm:w-8 sm:h-8"></i>
+          </div>
+
+          <h2 class="text-base sm:text-xl font-semibold text-slate-800 mb-1.5">
+            ลากไฟล์ <span class="text-indigo-600 font-bold">.CSV</span> มาวางที่นี่ หรือ <span class="text-indigo-600 underline decoration-indigo-300 underline-offset-4">แตะเพื่อเลือกไฟล์</span>
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-500 mb-4 sm:mb-5">
+            รองรับการเลือกหลายไฟล์พร้อมกัน • กด <kbd class="px-1.5 py-0.5 text-[11px] font-mono bg-slate-100 border border-slate-300 rounded text-slate-700">Ctrl+V</kbd> เพื่อวางข้อมูล CSV ได้ทันที
+          </p>
+
+          <div class="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-slate-600">
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200/70">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ภาษาไทยไม่ต่างดาว
+            </span>
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200/70">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ตัด ="..." อัตโนมัติ
+            </span>
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200/70">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ไม่ย่อเป็น E+11
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Categorized Conversion Settings Section -->
+    <section class="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-6 shadow-sm space-y-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 pb-3.5">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h2 class="text-sm sm:text-base font-semibold text-slate-800">ตั้งค่าการแปลงไฟล์ (Conversion Settings)</h2>
+            <p class="text-[11px] sm:text-xs text-slate-500">แยกส่วนการอ่านไฟล์ต้นฉบับและฟีเจอร์การจัดรูปแบบ Excel</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Two-Column Categorized Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+        <!-- PART 1: Source File Parsing (Functions) -->
+        <div class="lg:col-span-5 bg-slate-50/70 rounded-xl border border-slate-200/80 p-4 space-y-3.5">
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-md bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0">1</span>
+            <h3 class="text-xs sm:text-sm font-semibold text-slate-800">ฟังก์ชันการอ่านไฟล์ต้นฉบับ (Source)</h3>
+          </div>
+
+          <div class="space-y-3">
+            <!-- Custom Dropdown 1: Encoding -->
+            <div class="relative custom-dropdown" data-dropdown="encoding">
+              <label class="block text-xs font-medium text-slate-600 mb-1">รหัสภาษา (Character Encoding)</label>
+              <input type="hidden" id="encodingSelect" value="auto" />
+              <button
+                type="button"
+                class="dropdown-trigger w-full flex items-center justify-between gap-2 bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-3 py-2 text-left transition-all shadow-2xs"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <i data-lucide="languages" class="w-4 h-4 text-indigo-600 shrink-0"></i>
+                  <span class="dropdown-label text-xs sm:text-sm font-medium text-slate-800 truncate">ตรวจจับอัตโนมัติ (แนะนำ)</span>
+                </div>
+                <i data-lucide="chevron-down" class="dropdown-chevron w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0"></i>
+              </button>
+
+              <!-- Dropdown Menu -->
+              <div class="dropdown-menu hidden dropdown-animate absolute left-0 right-0 mt-1.5 z-40 bg-white rounded-xl border border-slate-200/90 shadow-xl shadow-slate-900/10 p-1.5 space-y-0.5">
+                <button type="button" data-value="auto" data-label="ตรวจจับอัตโนมัติ (แนะนำ)" class="dropdown-item w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left bg-indigo-50/80 text-indigo-700 font-medium transition-colors">
+                  <div>
+                    <div class="text-xs sm:text-sm">ตรวจจับอัตโนมัติ (แนะนำ)</div>
+                    <div class="text-[11px] text-slate-500 font-normal">แยกแยะ UTF-8 และ Windows-874 อัตโนมัติ</div>
+                  </div>
+                  <i data-lucide="check" class="check-icon w-4 h-4 text-indigo-600 shrink-0"></i>
+                </button>
+
+                <button type="button" data-value="UTF-8" data-label="UTF-8 (มาตรฐานสากล)" class="dropdown-item w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-slate-700 hover:bg-slate-50 transition-colors">
+                  <div>
+                    <div class="text-xs sm:text-sm font-medium">UTF-8 (มาตรฐานสากล)</div>
+                    <div class="text-[11px] text-slate-400">เหมาะกับไฟล์จากเว็บยุคใหม่ / Google Sheets</div>
+                  </div>
+                  <i data-lucide="check" class="check-icon w-4 h-4 text-indigo-600 shrink-0 hidden"></i>
+                </button>
+
+                <button type="button" data-value="windows-874" data-label="Windows-874 / TIS-620" class="dropdown-item w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-slate-700 hover:bg-slate-50 transition-colors">
+                  <div>
+                    <div class="text-xs sm:text-sm font-medium">Windows-874 / TIS-620</div>
+                    <div class="text-[11px] text-slate-400">เหมาะกับไฟล์จาก Excel เก่า / ระบบบัญชีไทย</div>
+                  </div>
+                  <i data-lucide="check" class="check-icon w-4 h-4 text-indigo-600 shrink-0 hidden"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Custom Dropdown 2: Delimiter -->
+            <div class="relative custom-dropdown" data-dropdown="delimiter">
+              <label class="block text-xs font-medium text-slate-600 mb-1">ตัวคั่นคอลัมน์ (Column Delimiter)</label>
+              <input type="hidden" id="delimiterSelect" value="auto" />
+              <button
+                type="button"
+                class="dropdown-trigger w-full flex items-center justify-between gap-2 bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-3 py-2 text-left transition-all shadow-2xs"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <i data-lucide="columns-3" class="w-4 h-4 text-indigo-600 shrink-0"></i>
+                  <span class="dropdown-label text-xs sm:text-sm font-medium text-slate-800 truncate">อัตโนมัติ ( , ; Tab )</span>
+                </div>
+                <i data-lucide="chevron-down" class="dropdown-chevron w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0"></i>
+              </button>
+
+              <!-- Dropdown Menu -->
+              <div class="dropdown-menu hidden dropdown-animate absolute left-0 right-0 mt-1.5 z-40 bg-white rounded-xl border border-slate-200/90 shadow-xl shadow-slate-900/10 p-1.5 space-y-0.5">
+                <button type="button" data-value="auto" data-label="อัตโนมัติ ( , ; Tab )" class="dropdown-item w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left bg-indigo-50/80 text-indigo-700 font-medium transition-colors">
+                  <div>
+                    <div class="text-xs sm:text-sm">อัตโนมัติ ( , ; Tab )</div>
+                    <div class="text-[11px] text-slate-500 font-normal">ตรวจจับตัวคั่นคอลัมน์ให้ตรงตามโครงสร้างไฟล์</div>
+                  </div>
+                  <i data-lucide="check" class="check-icon w-4 h-4 text-indigo-600 shrink-0"></i>
+                </button>
+
+                <button type="button" data-value="," data-label="จุลภาค — Comma ( , )" class="dropdown-item w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-slate-700 hover:bg-slate-50 transition-colors">
+                  <div class="flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded-md bg-slate-100 text-slate-700 font-mono text-xs font-bold flex items-center justify-center">,</span>
+                    <span class="text-xs sm:text-sm font-medium">จุลภาค (Comma)</span>
+                  </div>
+                  <i data-lucide="check" class="check-icon w-4 h-4 text-indigo-600 shrink-0 hidden"></i>
+                </button>
+
+                <button type="button" data-value=";" data-label="อัฒภาค — Semicolon ( ; )" class="dropdown-item w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-slate-700 hover:bg-slate-50 transition-colors">
+                  <div class="flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded-md bg-slate-100 text-slate-700 font-mono text-xs font-bold flex items-center justify-center">;</span>
+                    <span class="text-xs sm:text-sm font-medium">อัฒภาค (Semicolon)</span>
+                  </div>
+                  <i data-lucide="check" class="check-icon w-4 h-4 text-indigo-600 shrink-0 hidden"></i>
+                </button>
+
+                <button type="button" data-value="	" data-label="แท็บ — Tab ( \t )" class="dropdown-item w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-slate-700 hover:bg-slate-50 transition-colors">
+                  <div class="flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded-md bg-slate-100 text-slate-700 font-mono text-[11px] font-bold flex items-center justify-center">Tab</span>
+                    <span class="text-xs sm:text-sm font-medium">แท็บ (Tab Delimited)</span>
+                  </div>
+                  <i data-lucide="check" class="check-icon w-4 h-4 text-indigo-600 shrink-0 hidden"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PART 2: Excel Output Features -->
+        <div class="lg:col-span-7 bg-emerald-50/40 rounded-xl border border-emerald-200/70 p-4 space-y-3.5">
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-md bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0">2</span>
+            <h3 class="text-xs sm:text-sm font-semibold text-slate-800">ฟีเจอร์และการจัดรูปแบบไฟล์ Excel (Output Features)</h3>
+          </div>
+
+          <!-- Sheet Name Input -->
+          <div>
+            <label for="sheetNameInput" class="block text-xs font-medium text-slate-600 mb-1">ชื่อแท็บชีทใน Excel (Worksheet Name)</label>
+            <div class="relative flex items-center">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600 absolute left-3 pointer-events-none"></i>
+              <input
+                type="text"
+                id="sheetNameInput"
+                value="Sheet1"
+                maxlength="31"
+                placeholder="เช่น ข้อมูลขาย, Sheet1"
+                class="w-full bg-white border border-slate-200 hover:border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pl-9 pr-3 py-2 text-xs sm:text-sm font-medium text-slate-800 transition-all outline-none"
+              />
+            </div>
+          </div>
+
+          <!-- Feature Toggles -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
+            <!-- Feature 1: Preserve Leading Zeros & Long Numbers -->
+            <label class="sm:col-span-2 flex items-start gap-2.5 p-2.5 rounded-xl bg-white hover:bg-emerald-50/60 border border-slate-200/90 cursor-pointer select-none transition-colors">
+              <input type="checkbox" id="preserveZerosCheck" checked class="mt-0.5 w-4 h-4 text-emerald-600 bg-white border-slate-300 rounded focus:ring-emerald-500 shrink-0" />
+              <div class="min-w-0">
+                <div class="text-xs sm:text-sm font-medium text-slate-800">ป้องกันเลข 0 หาย & เลขยาวกลายเป็น E+11</div>
+                <div class="text-[11px] text-slate-500 leading-snug">แสดงรหัสยาว เช่น <span class="font-mono text-slate-700">100005816504</span> หรือเบอร์โทร <span class="font-mono text-slate-700">081...</span> ครบทุกหลักไม่ถูกย่อ</div>
+              </div>
+            </label>
+
+            <!-- Feature 2: Auto Fit Column Width -->
+            <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-white hover:bg-emerald-50/60 border border-slate-200/90 cursor-pointer select-none transition-colors">
+              <input type="checkbox" id="autoWidthCheck" checked class="mt-0.5 w-4 h-4 text-emerald-600 bg-white border-slate-300 rounded focus:ring-emerald-500 shrink-0" />
+              <div class="min-w-0">
+                <div class="text-xs sm:text-sm font-medium text-slate-800">จัดความกว้างคอลัมน์อัตโนมัติ</div>
+                <div class="text-[11px] text-slate-500 leading-snug">ขยายช่องพอดีกับข้อความไทย</div>
+              </div>
+            </label>
+
+            <!-- Feature 3: Freeze Header Row -->
+            <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-white hover:bg-emerald-50/60 border border-slate-200/90 cursor-pointer select-none transition-colors">
+              <input type="checkbox" id="freezeHeaderCheck" checked class="mt-0.5 w-4 h-4 text-emerald-600 bg-white border-slate-300 rounded focus:ring-emerald-500 shrink-0" />
+              <div class="min-w-0">
+                <div class="text-xs sm:text-sm font-medium text-slate-800">ตรึงแถวหัวตาราง (Row 1)</div>
+                <div class="text-[11px] text-slate-500 leading-snug">เลื่อนดูข้อมูลแล้วหัวตารางไม่หาย</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- File Queue & Batch Progress Section -->
+    <section id="queueSection" class="hidden space-y-4">
+
+      <!-- Batch Control & Progress Card -->
+      <div class="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+          <div>
+            <div class="flex items-center gap-2.5">
+              <h3 class="font-semibold text-slate-800 text-base">รายการไฟล์ทั้งหมด</h3>
+              <span id="fileCountBadge" class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-700">0 ไฟล์</span>
+            </div>
+            <p id="batchStatusText" class="text-xs text-slate-500 mt-0.5">พร้อมสำหรับการแปลงเป็นไฟล์ .xlsx</p>
+          </div>
+
+          <!-- Action Buttons (Responsive wrap on mobile) -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              id="clearAllBtn"
+              type="button"
+              class="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 active:bg-rose-200/70 border border-rose-200/90 rounded-xl shadow-2xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+              <span>ล้างรายการ</span>
+            </button>
+
+            <button
+              id="convertAllBtn"
+              type="button"
+              class="flex-1 sm:flex-none justify-center inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] rounded-xl shadow-sm shadow-indigo-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <i data-lucide="zap" class="w-4 h-4"></i>
+              <span>แปลงไฟล์ทั้งหมด</span>
+            </button>
+
+            <button
+              id="downloadZipBtn"
+              type="button"
+              class="hidden w-full sm:w-auto justify-center inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] rounded-xl shadow-sm shadow-emerald-500/25 transition-all"
+            >
+              <i data-lucide="archive" class="w-4 h-4"></i>
+              <span>ดาวน์โหลดทั้งหมด (.ZIP)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Overall Progress Bar -->
+        <div id="overallProgressWrapper" class="space-y-1.5 pt-1">
+          <div class="flex items-center justify-between text-xs font-medium">
+            <span id="overallProgressLabel" class="text-slate-600">ความคืบหน้าโดยรวม</span>
+            <span id="overallProgressPercent" class="text-indigo-600 font-mono font-semibold">0%</span>
+          </div>
+          <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
+            <div
+              id="overallProgressBar"
+              class="h-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-emerald-500 rounded-full transition-all duration-300 ease-out"
+              style="width: 0%"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Individual Files List -->
+      <div id="fileListContainer" class="space-y-2.5">
+        <!-- File Cards will be injected here dynamically -->
+      </div>
+    </section>
+
+    <!-- Empty State Helper Tips -->
+    <section id="tipsSection" class="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 pt-1">
+      <div class="bg-white/70 border border-slate-200/80 rounded-2xl p-4 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+          <i data-lucide="languages" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h4 class="font-semibold text-sm text-slate-800">แก้ปัญหาภาษาต่างดาว</h4>
+          <p class="text-xs text-slate-500 mt-1 leading-relaxed">ระบบตรวจสอบ Byte Order Mark (BOM) และแยกแยะรหัส UTF-8 กับ Windows-874 อัตโนมัติ</p>
+        </div>
+      </div>
+
+      <div class="bg-white/70 border border-slate-200/80 rounded-2xl p-4 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+          <i data-lucide="hash" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h4 class="font-semibold text-sm text-slate-800">ตัวเลขยาวไม่ย่อเป็น E+11</h4>
+          <p class="text-xs text-slate-500 mt-1 leading-relaxed">รักษาเลข 12–13 หลัก (เช่น 100005816504) และเลข 0 นำหน้าให้แสดงครบทุกหลักใน Excel</p>
+        </div>
+      </div>
+
+      <div class="bg-white/70 border border-slate-200/80 rounded-2xl p-4 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+          <i data-lucide="smartphone" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h4 class="font-semibold text-sm text-slate-800">รองรับทั้งคอมและมือถือ</h4>
+          <p class="text-xs text-slate-500 mt-1 leading-relaxed">ใช้งานได้ทุกหน้าจอ เลือกไฟล์จากมือถือหรือลากวางหลายไฟล์บนคอมพร้อมโหลดรวมเป็น ZIP ได้ทันที</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Data Preview Modal -->
+  <div id="previewModal" class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <!-- Modal Header -->
+      <div class="px-4 sm:px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50/80 gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+            <i data-lucide="table" class="w-4 h-4"></i>
+          </div>
+          <div class="min-w-0">
+            <h3 id="previewModalTitle" class="font-semibold text-slate-800 text-sm sm:text-base truncate">ตัวอย่างข้อมูล</h3>
+            <p id="previewModalSubtitle" class="text-[11px] sm:text-xs text-slate-500 truncate">แสดงตัวอย่าง 15 แถวแรก</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <!-- Custom Dropdown inside Modal -->
+          <div class="relative custom-dropdown" data-dropdown="modalEncoding">
+            <input type="hidden" id="modalEncodingOverride" value="UTF-8" />
+            <button
+              type="button"
+              class="dropdown-trigger flex items-center justify-between gap-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors"
+            >
+              <span class="dropdown-label">UTF-8</span>
+              <i data-lucide="chevron-down" class="dropdown-chevron w-3.5 h-3.5 text-slate-400 transition-transform duration-200"></i>
+            </button>
+
+            <div class="dropdown-menu hidden dropdown-animate absolute right-0 mt-1.5 w-48 z-50 bg-white rounded-xl border border-slate-200 shadow-xl p-1 space-y-0.5">
+              <button type="button" data-value="UTF-8" data-label="UTF-8" class="dropdown-item w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-left bg-indigo-50 text-indigo-700 font-medium">
+                <span>UTF-8 (สากล)</span>
+                <i data-lucide="check" class="check-icon w-3.5 h-3.5 text-indigo-600"></i>
+              </button>
+              <button type="button" data-value="windows-874" data-label="Windows-874" class="dropdown-item w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-left text-slate-700 hover:bg-slate-50">
+                <span>Windows-874 (TIS-620)</span>
+                <i data-lucide="check" class="check-icon w-3.5 h-3.5 text-indigo-600 hidden"></i>
+              </button>
+            </div>
+          </div>
+
+          <button id="closePreviewModal" type="button" class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition-colors">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body (Table) -->
+      <div class="flex-1 overflow-auto p-3 sm:p-4 bg-white">
+        <div class="border border-slate-200 rounded-xl overflow-x-auto">
+          <table id="previewTable" class="w-full text-left border-collapse text-xs sm:text-sm">
+            <!-- Dynamic table content -->
+          </table>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-4 sm:px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
+        <span id="previewStatsText">พบข้อมูลทั้งหมด 0 แถว</span>
+        <button id="closePreviewModalBtn" type="button" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg transition-colors">
+          ปิดหน้าต่าง
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 left-4 sm:left-auto z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // Application State
+    const state = {
+      files: [],
+      isConverting: false,
+      previewFileId: null
+    };
+
+    // DOM Elements
+    const dropZone = document.getElementById('dropZone');
+    const globalDropOverlay = document.getElementById('globalDropOverlay');
+    const fileInput = document.getElementById('fileInput');
+    const encodingSelect = document.getElementById('encodingSelect');
+    const delimiterSelect = document.getElementById('delimiterSelect');
+    const sheetNameInput = document.getElementById('sheetNameInput');
+    const preserveZerosCheck = document.getElementById('preserveZerosCheck');
+    const autoWidthCheck = document.getElementById('autoWidthCheck');
+    const freezeHeaderCheck = document.getElementById('freezeHeaderCheck');
+
+    const queueSection = document.getElementById('queueSection');
+    const tipsSection = document.getElementById('tipsSection');
+    const fileCountBadge = document.getElementById('fileCountBadge');
+    const batchStatusText = document.getElementById('batchStatusText');
+    const fileListContainer = document.getElementById('fileListContainer');
+
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const convertAllBtn = document.getElementById('convertAllBtn');
+    const downloadZipBtn = document.getElementById('downloadZipBtn');
+
+    const overallProgressLabel = document.getElementById('overallProgressLabel');
+    const overallProgressPercent = document.getElementById('overallProgressPercent');
+    const overallProgressBar = document.getElementById('overallProgressBar');
+
+    // Preview Modal Elements
+    const previewModal = document.getElementById('previewModal');
+    const previewModalTitle = document.getElementById('previewModalTitle');
+    const previewModalSubtitle = document.getElementById('previewModalSubtitle');
+    const modalEncodingOverride = document.getElementById('modalEncodingOverride');
+    const previewTable = document.getElementById('previewTable');
+    const previewStatsText = document.getElementById('previewStatsText');
+    const closePreviewModal = document.getElementById('closePreviewModal');
+    const closePreviewModalBtn = document.getElementById('closePreviewModalBtn');
+
+    // ==========================================
+    // Custom Styled Dropdown Controller
+    // ==========================================
+    function setCustomDropdownValue(dropdownEl, value, labelText = null) {
+      const hiddenInput = dropdownEl.querySelector('input[type="hidden"]');
+      const labelEl = dropdownEl.querySelector('.dropdown-label');
+      const items = dropdownEl.querySelectorAll('.dropdown-item');
+
+      hiddenInput.value = value;
+
+      items.forEach((btn) => {
+        const isMatch = btn.dataset.value === value;
+        const checkIcon = btn.querySelector('.check-icon');
+
+        if (isMatch) {
+          btn.classList.add('bg-indigo-50/80', 'text-indigo-700', 'font-medium');
+          btn.classList.remove('text-slate-700', 'hover:bg-slate-50');
+          if (checkIcon) checkIcon.classList.remove('hidden');
+          if (!labelText) labelText = btn.dataset.label;
+        } else {
+          btn.classList.remove('bg-indigo-50/80', 'text-indigo-700', 'font-medium');
+          btn.classList.add('text-slate-700', 'hover:bg-slate-50');
+          if (checkIcon) checkIcon.classList.add('hidden');
+        }
+      });
+
+      if (labelText && labelEl) {
+        labelEl.textContent = labelText;
+      }
+    }
+
+    function closeAllDropdowns(exceptEl = null) {
+      document.querySelectorAll('.custom-dropdown').forEach((dd) => {
+        if (dd !== exceptEl) {
+          const menu = dd.querySelector('.dropdown-menu');
+          const chevron = dd.querySelector('.dropdown-chevron');
+          const trigger = dd.querySelector('.dropdown-trigger');
+          if (menu) menu.classList.add('hidden');
+          if (chevron) chevron.classList.remove('rotate-180');
+          if (trigger) trigger.classList.remove('border-indigo-500', 'ring-2', 'ring-indigo-500/20', 'bg-white');
+        }
+      });
+    }
+
+    document.querySelectorAll('.custom-dropdown').forEach((dd) => {
+      const trigger = dd.querySelector('.dropdown-trigger');
+      const menu = dd.querySelector('.dropdown-menu');
+      const chevron = dd.querySelector('.dropdown-chevron');
+      const hiddenInput = dd.querySelector('input[type="hidden"]');
+
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = menu.classList.contains('hidden');
+        closeAllDropdowns(dd);
+        if (isHidden) {
+          menu.classList.remove('hidden');
+          if (chevron) chevron.classList.add('rotate-180');
+          trigger.classList.add('border-indigo-500', 'ring-2', 'ring-indigo-500/20', 'bg-white');
+        } else {
+          menu.classList.add('hidden');
+          if (chevron) chevron.classList.remove('rotate-180');
+          trigger.classList.remove('border-indigo-500', 'ring-2', 'ring-indigo-500/20', 'bg-white');
+        }
+      });
+
+      dd.querySelectorAll('.dropdown-item').forEach((itemBtn) => {
+        itemBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const newVal = itemBtn.dataset.value;
+          const newLabel = itemBtn.dataset.label;
+          setCustomDropdownValue(dd, newVal, newLabel);
+          closeAllDropdowns();
+          hiddenInput.dispatchEvent(new Event('change'));
+        });
+      });
+    });
+
+    document.addEventListener('click', () => closeAllDropdowns());
+
+    // Utility: Format Bytes
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Utility: Generate Unique ID
+    function uid() {
+      return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    }
+
+    // Utility: Sanitize Excel Sheet Name (max 31 chars, no \ / ? * [ ] :)
+    function sanitizeSheetName(rawName) {
+      const cleaned = (rawName || 'Sheet1')
+        .replace(/[\\\/\?\*\[\]:]/g, '_')
+        .trim()
+        .slice(0, 31);
+      return cleaned || 'Sheet1';
+    }
+
+    // Utility: Show Toast Notification
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      const colors = {
+        success: 'bg-emerald-600 text-white border-emerald-500',
+        error: 'bg-rose-600 text-white border-rose-500',
+        info: 'bg-slate-800 text-white border-slate-700',
+        warning: 'bg-amber-500 text-white border-amber-400'
+      };
+      const icons = {
+        success: 'check-circle',
+        error: 'alert-circle',
+        info: 'info',
+        warning: 'alert-triangle'
+      };
+
+      toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs sm:text-sm font-medium transform transition-all duration-300 translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+      toast.innerHTML = `
+        <i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i>
+        <span>${message}</span>
+      `;
+
+      const container = document.getElementById('toastContainer');
+      container.appendChild(toast);
+      lucide.createIcons({ root: toast });
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-2', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+
+    // Smart Encoding Detector & Decoder
+    async function readFileWithSmartEncoding(file, preferredEncoding = 'auto') {
+      const buffer = await file.arrayBuffer();
+      const uint8 = new Uint8Array(buffer);
+
+      // 1. Check UTF-8 BOM
+      if (uint8.length >= 3 && uint8[0] === 0xEF && uint8[1] === 0xBB && uint8[2] === 0xBF) {
+        const decoder = new TextDecoder('utf-8');
+        return { text: decoder.decode(uint8.subarray(3)), encoding: 'UTF-8 (BOM)' };
+      }
+
+      // 2. Check UTF-16LE / UTF-16BE BOM
+      if (uint8.length >= 2 && uint8[0] === 0xFF && uint8[1] === 0xFE) {
+        const decoder = new TextDecoder('utf-16le');
+        return { text: decoder.decode(uint8.subarray(2)), encoding: 'UTF-16LE' };
+      }
+      if (uint8.length >= 2 && uint8[0] === 0xFE && uint8[1] === 0xFF) {
+        const decoder = new TextDecoder('utf-16be');
+        return { text: decoder.decode(uint8.subarray(2)), encoding: 'UTF-16BE' };
+      }
+
+      // 3. Explicit user encoding choice
+      if (preferredEncoding !== 'auto') {
+        const decoder = new TextDecoder(preferredEncoding);
+        let text = decoder.decode(uint8);
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+        return { text, encoding: preferredEncoding === 'windows-874' ? 'Windows-874' : 'UTF-8' };
+      }
+
+      // 4. Auto-detect
+      try {
+        const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+        let text = utf8Decoder.decode(uint8);
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+        return { text, encoding: 'UTF-8' };
+      } catch (e) {
+        const thaiDecoder = new TextDecoder('windows-874');
+        const text = thaiDecoder.decode(uint8);
+        return { text, encoding: 'Windows-874 (TIS-620)' };
+      }
+    }
+
+    // Clean raw CSV cell value: strips Excel text-formula wrapper like ="1201396-07-01-1D" -> 1201396-07-01-1D
+    function cleanRawCsvCell(val) {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      const trimmed = str.trim();
+      if (trimmed.length >= 3 && trimmed.startsWith('="') && trimmed.endsWith('"')) {
+        str = trimmed.slice(2, -1).replace(/""/g, '"');
+      }
+      return str;
+    }
+
+    // Parse CSV Text using PapaParse
+    function parseCsvText(csvText, delimiterSetting = 'auto') {
+      return new Promise((resolve, reject) => {
+        const config = {
+          skipEmptyLines: 'greedy',
+          dynamicTyping: false,
+          complete: (results) => {
+            const cleanedData = (results.data || []).map((row) =>
+              Array.isArray(row) ? row.map((cell) => cleanRawCsvCell(cell)) : row
+            );
+            resolve({ ...results, data: cleanedData });
+          },
+          error: (err) => reject(err)
+        };
+
+        if (delimiterSetting !== 'auto') {
+          config.delimiter = delimiterSetting;
+        }
+
+        Papa.parse(csvText, config);
+      });
+    }
+
+    // Calculate Visual Character Width for Thai Text
+    function getThaiVisualWidth(str) {
+      if (str === null || str === undefined) return 0;
+      const text = String(str);
+      const withoutCombining = text.replace(/[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g, '');
+      let width = 0;
+      for (let i = 0; i < withoutCombining.length; i++) {
+        const code = withoutCombining.charCodeAt(i);
+        width += code > 255 ? 1.15 : 1.0;
+      }
+      return Math.ceil(width);
+    }
+
+    // Convert Parsed 2D Array to XLSX Blob
+    function buildXlsxBlob(rows, options = { preserveZeros: true, autoWidth: true, freezeHeader: true, sheetName: 'Sheet1' }) {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(rows, { cellDates: false });
+
+      if (rows.length > 0) {
+        const range = XLSX.utils.decode_range(ws['!ref']);
+
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+          for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+            const rawVal = rows[R] && rows[R][C] !== undefined ? rows[R][C] : '';
+            const strVal = cleanRawCsvCell(rawVal);
+
+            if (strVal === '') continue;
+
+            const trimmed = strVal.trim();
+            let cell = ws[cellAddress] || { v: strVal };
+            delete cell.f;
+
+            const hasLeadingZero = /^0\d+/.test(trimmed);
+            const isNumericFormat = /^-?\d+(\.\d+)?$/.test(trimmed) && isFinite(Number(trimmed));
+            const digitCount = trimmed.replace(/[^0-9]/g, '').length;
+
+            if (options.preserveZeros) {
+              // Excel turns numbers with >= 11-12 digits (like 100005816504) into scientific notation (1.00006E+11).
+              // Store integers/numbers with >= 11 digits or leading zeros as strict Text ('s') with '@' format.
+              const isLongInteger = /^-?\d+$/.test(trimmed) && digitCount >= 11;
+              if (isNumericFormat && !hasLeadingZero && !isLongInteger && digitCount <= 10) {
+                cell.t = 'n';
+                cell.v = Number(trimmed);
+              } else {
+                cell.t = 's';
+                cell.v = strVal;
+                cell.z = '@';
+              }
+            } else {
+              // Convert standard numbers up to 15 digits to numeric type
+              if (isNumericFormat && digitCount <= 15) {
+                cell.t = 'n';
+                cell.v = Number(trimmed);
+              } else {
+                cell.t = 's';
+                cell.v = strVal;
+                cell.z = '@';
+              }
+            }
+
+            ws[cellAddress] = cell;
+          }
+        }
+
+        // Auto-fit column widths
+        if (options.autoWidth) {
+          const colWidths = [];
+          const numCols = range.e.c + 1;
+          for (let C = 0; C < numCols; C++) {
+            let maxW = 10;
+            const sampleLimit = Math.min(rows.length, 500);
+            for (let R = 0; R < sampleLimit; R++) {
+              const val = rows[R] ? rows[R][C] : '';
+              const w = getThaiVisualWidth(val) + 3;
+              if (w > maxW) maxW = w;
+            }
+            colWidths.push({ wch: Math.min(maxW, 60) });
+          }
+          ws['!cols'] = colWidths;
+        }
+
+        // Freeze Top Header Row
+        if (options.freezeHeader) {
+          ws['!views'] = [{ state: 'frozen', ySplit: 1 }];
+        }
+      }
+
+      const safeSheetName = sanitizeSheetName(options.sheetName);
+      XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true });
+      return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+
+    // Add Files to Queue
+    function addFiles(fileList) {
+      const incoming = Array.from(fileList);
+      let addedCount = 0;
+
+      incoming.forEach((file) => {
+        const lowerName = file.name.toLowerCase();
+        const isCsvOrText =
+          lowerName.endsWith('.csv') ||
+          lowerName.endsWith('.txt') ||
+          file.type === 'text/csv' ||
+          file.type === 'text/plain' ||
+          file.type === 'application/csv' ||
+          file.type === 'application/vnd.ms-excel' ||
+          file.type === '';
+
+        if (!isCsvOrText) {
+          showToast(`ข้ามไฟล์ "${file.name}" เนื่องจากไม่ใช่ไฟล์ CSV`, 'warning');
+          return;
+        }
+
+        const isDuplicate = state.files.some((f) => f.name === file.name && f.size === file.size);
+        if (isDuplicate) {
+          showToast(`ไฟล์ "${file.name}" อยู่ในรายการแล้ว`, 'info');
+          return;
+        }
+
+        const baseName = file.name.replace(/\.(csv|txt)$/i, '');
+        state.files.push({
+          id: uid(),
+          file,
+          name: file.name,
+          size: file.size,
+          status: 'pending',
+          progress: 0,
+          detectedEncoding: null,
+          xlsxBlob: null,
+          xlsxFileName: `${baseName}.xlsx`,
+          rowCount: 0,
+          colCount: 0,
+          errorMsg: null
+        });
+        addedCount++;
+      });
+
+      if (addedCount > 0) {
+        showToast(`เพิ่ม ${addedCount} ไฟล์เข้ารายการแล้ว`, 'success');
+        renderQueue();
+      }
+    }
+
+    // Convert a Single File
+    async function convertSingleFile(item) {
+      item.status = 'converting';
+      item.progress = 20;
+      item.errorMsg = null;
+      updateFileCardUI(item);
+
+      try {
+        await new Promise((r) => setTimeout(r, 40));
+
+        const preferredEncoding = encodingSelect.value;
+        const delimiterSetting = delimiterSelect.value;
+
+        const { text, encoding } = await readFileWithSmartEncoding(item.file, preferredEncoding);
+        item.detectedEncoding = encoding;
+        item.progress = 55;
+        updateFileCardUI(item);
+
+        const parsed = await parseCsvText(text, delimiterSetting);
+        if (!parsed.data || parsed.data.length === 0) {
+          throw new Error('ไม่พบข้อมูลในไฟล์ CSV');
+        }
+
+        item.rowCount = parsed.data.length;
+        item.colCount = parsed.data[0] ? parsed.data[0].length : 0;
+        item.progress = 85;
+        updateFileCardUI(item);
+
+        const blob = buildXlsxBlob(parsed.data, {
+          preserveZeros: preserveZerosCheck.checked,
+          autoWidth: autoWidthCheck.checked,
+          freezeHeader: freezeHeaderCheck.checked,
+          sheetName: sheetNameInput.value
+        });
+
+        item.xlsxBlob = blob;
+        item.progress = 100;
+        item.status = 'done';
+        updateFileCardUI(item);
+      } catch (err) {
+        console.error(err);
+        item.status = 'error';
+        item.progress = 0;
+        item.errorMsg = err.message || 'เกิดข้อผิดพลาดในการแปลงไฟล์';
+        updateFileCardUI(item);
+      }
+    }
+
+    // Convert All Files in Queue
+    async function convertAllFiles() {
+      if (state.isConverting || state.files.length === 0) return;
+      state.isConverting = true;
+      convertAllBtn.disabled = true;
+      clearAllBtn.disabled = true;
+
+      const targets = state.files.filter((f) => f.status !== 'done');
+      const itemsToProcess = targets.length > 0 ? targets : state.files;
+
+      for (const item of itemsToProcess) {
+        item.status = 'pending';
+        item.progress = 0;
+      }
+      renderQueue();
+
+      for (let i = 0; i < itemsToProcess.length; i++) {
+        await convertSingleFile(itemsToProcess[i]);
+        updateOverallProgress();
+      }
+
+      state.isConverting = false;
+      convertAllBtn.disabled = false;
+      clearAllBtn.disabled = false;
+      updateOverallProgress();
+
+      const successCount = state.files.filter((f) => f.status === 'done').length;
+      if (successCount > 0) {
+        showToast(`แปลงไฟล์สำเร็จ ${successCount} จาก ${state.files.length} ไฟล์`, 'success');
+      }
+    }
+
+    // Rename Output XLSX File
+    window.renameOutputFile = function (id) {
+      const item = state.files.find((f) => f.id === id);
+      if (!item || state.isConverting) return;
+
+      const currentBase = item.xlsxFileName.replace(/\.xlsx$/i, '');
+      const newBase = prompt('ตั้งชื่อไฟล์ Excel (.xlsx) ใหม่:', currentBase);
+      if (newBase === null) return;
+
+      const cleanBase = newBase.trim().replace(/[\\\/\?\*\[\]:"<>|]/g, '_');
+      if (!cleanBase) {
+        showToast('ชื่อไฟล์ต้องไม่เป็นค่าว่าง', 'warning');
+        return;
+      }
+
+      item.xlsxFileName = cleanBase.endsWith('.xlsx') ? cleanBase : `${cleanBase}.xlsx`;
+      updateFileCardUI(item);
+      showToast(`เปลี่ยนชื่อไฟล์ปลายทางเป็น "${item.xlsxFileName}"`, 'info');
+    };
+
+    // Trigger Single File Download
+    function downloadSingleFile(id) {
+      const item = state.files.find((f) => f.id === id);
+      if (!item || !item.xlsxBlob) return;
+
+      const url = URL.createObjectURL(item.xlsxBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.xlsxFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // Download All Converted Files as a ZIP Archive
+    async function downloadAllAsZip() {
+      const doneFiles = state.files.filter((f) => f.status === 'done' && f.xlsxBlob);
+      if (doneFiles.length === 0) return;
+
+      if (doneFiles.length === 1) {
+        downloadSingleFile(doneFiles[0].id);
+        return;
+      }
+
+      downloadZipBtn.disabled = true;
+      const originalHtml = downloadZipBtn.innerHTML;
+      downloadZipBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>กำลังบีบอัด ZIP...</span>`;
+      lucide.createIcons({ root: downloadZipBtn });
+
+      try {
+        const zip = new JSZip();
+        const usedNames = new Set();
+
+        doneFiles.forEach((item) => {
+          let fileName = item.xlsxFileName;
+          let counter = 1;
+          while (usedNames.has(fileName)) {
+            const base = item.xlsxFileName.replace(/\.xlsx$/i, '');
+            fileName = `${base}_${counter}.xlsx`;
+            counter++;
+          }
+          usedNames.add(fileName);
+          zip.file(fileName, item.xlsxBlob);
+        });
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        const timestamp = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `CSV_to_XLSX_${timestamp}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+        showToast(`ดาวน์โหลดไฟล์ ZIP (${doneFiles.length} ไฟล์) เรียบร้อยแล้ว`, 'success');
+      } catch (err) {
+        showToast('ไม่สามารถสร้างไฟล์ ZIP ได้', 'error');
+      } finally {
+        downloadZipBtn.disabled = false;
+        downloadZipBtn.innerHTML = originalHtml;
+        lucide.createIcons({ root: downloadZipBtn });
+      }
+    }
+
+    // Remove File from Queue
+    function removeFile(id) {
+      if (state.isConverting) return;
+      state.files = state.files.filter((f) => f.id !== id);
+      renderQueue();
+    }
+
+    // Open Preview Modal for a File
+    async function openPreview(id, overrideEncoding = null) {
+      const item = state.files.find((f) => f.id === id);
+      if (!item) return;
+
+      state.previewFileId = id;
+      previewModalTitle.textContent = item.name;
+      previewTable.innerHTML = `<tr><td class="p-6 text-center text-slate-500">กำลังโหลดตัวอย่างข้อมูล...</td></tr>`;
+      previewModal.classList.remove('hidden');
+
+      const encToUse = overrideEncoding || (encodingSelect.value !== 'auto' ? encodingSelect.value : 'auto');
+      const { text, encoding } = await readFileWithSmartEncoding(item.file, encToUse);
+
+      const modalDropdownEl = document.querySelector('[data-dropdown="modalEncoding"]');
+      const targetVal = encoding.includes('874') ? 'windows-874' : 'UTF-8';
+      const targetLabel = encoding.includes('874') ? 'Windows-874' : 'UTF-8';
+      setCustomDropdownValue(modalDropdownEl, targetVal, targetLabel);
+
+      previewModalSubtitle.textContent = `รหัสภาษา: ${encoding} • ตัวอย่าง 15 แถวแรก`;
+
+      const parsed = await parseCsvText(text, delimiterSelect.value);
+      const rows = parsed.data || [];
+      previewStatsText.textContent = `พบข้อมูลทั้งหมด ${rows.length.toLocaleString()} แถว • ${rows[0] ? rows[0].length : 0} คอลัมน์`;
+
+      if (rows.length === 0) {
+        previewTable.innerHTML = `<tr><td class="p-6 text-center text-slate-500">ไม่พบข้อมูลในไฟล์นี้</td></tr>`;
+        return;
+      }
+
+      const previewRows = rows.slice(0, 15);
+      let html = '';
+
+      previewRows.forEach((row, rIdx) => {
+        const isHeader = rIdx === 0;
+        html += `<tr class="${isHeader ? 'bg-slate-100 font-semibold text-slate-800 border-b border-slate-300' : 'border-b border-slate-100 hover:bg-indigo-50/40'}">`;
+        html += `<td class="px-3 py-2 text-[11px] font-mono text-slate-400 bg-slate-50/70 border-r border-slate-200 select-none">${rIdx + 1}</td>`;
+        row.forEach((cell) => {
+          const safeText = String(cell ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          html += `<td class="px-3 py-2 whitespace-nowrap max-w-[260px] truncate border-r border-slate-100 last:border-r-0" title="${safeText}">${safeText}</td>`;
+        });
+        html += `</tr>`;
+      });
+
+      previewTable.innerHTML = html;
+    }
+
+    // Update Overall Progress Bar & Header Badges
+    function updateOverallProgress() {
+      const total = state.files.length;
+      if (total === 0) {
+        queueSection.classList.add('hidden');
+        tipsSection.classList.remove('hidden');
+        return;
+      }
+
+      queueSection.classList.remove('hidden');
+      tipsSection.classList.add('hidden');
+
+      fileCountBadge.textContent = `${total} ไฟล์`;
+
+      const sumProgress = state.files.reduce((acc, f) => acc + f.progress, 0);
+      const avgPercent = Math.round(sumProgress / total);
+      const doneCount = state.files.filter((f) => f.status === 'done').length;
+      const errorCount = state.files.filter((f) => f.status === 'error').length;
+
+      overallProgressBar.style.width = `${avgPercent}%`;
+      overallProgressPercent.textContent = `${avgPercent}%`;
+
+      if (state.isConverting) {
+        overallProgressLabel.textContent = `กำลังแปลงไฟล์... (${doneCount}/${total} ไฟล์)`;
+        batchStatusText.textContent = 'ระบบกำลังประมวลผลและจัดรูปแบบตาราง Excel...';
+      } else if (doneCount === total && total > 0) {
+        overallProgressLabel.textContent = 'แปลงไฟล์เสร็จสมบูรณ์ทั้งหมดแล้ว';
+        batchStatusText.textContent = `สำเร็จครบทั้ง ${total} ไฟล์ พร้อมดาวน์โหลดทันที`;
+      } else if (doneCount > 0) {
+        overallProgressLabel.textContent = `แปลงสำเร็จแล้ว ${doneCount} จาก ${total} ไฟล์`;
+        batchStatusText.textContent = errorCount > 0 ? `พบข้อผิดพลาด ${errorCount} ไฟล์` : 'พร้อมแปลงไฟล์ที่เหลือ';
+      } else {
+        overallProgressLabel.textContent = 'รอเริ่มการแปลงไฟล์';
+        batchStatusText.textContent = 'กดปุ่ม "แปลงไฟล์ทั้งหมด" หรือกดแปลงทีละไฟล์ได้ทันที';
+      }
+
+      if (doneCount > 0 && !state.isConverting) {
+        downloadZipBtn.classList.remove('hidden');
+      } else {
+        downloadZipBtn.classList.add('hidden');
+      }
+    }
+
+    // Render Single File Card HTML
+    function getFileCardHTML(item) {
+      let statusBadge = '';
+      let barColor = 'bg-indigo-600';
+      let actionButtons = '';
+
+      if (item.status === 'pending') {
+        statusBadge = `<span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">รอแปลงไฟล์</span>`;
+        actionButtons = `
+          <button onclick="openPreview('${item.id}')" title="ดูตัวอย่างข้อมูล" class="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+          </button>
+          <button onclick="convertAndDownloadOne('${item.id}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
+            <i data-lucide="play" class="w-3.5 h-3.5"></i>
+            <span>แปลงไฟล์</span>
+          </button>
+          <button onclick="removeFile('${item.id}')" title="ลบออกจากรายการ" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        `;
+      } else if (item.status === 'converting') {
+        statusBadge = `<span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 animate-pulse-subtle"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> กำลังแปลง...</span>`;
+        actionButtons = `<span class="text-xs font-mono text-indigo-600 font-semibold px-2">${item.progress}%</span>`;
+      } else if (item.status === 'done') {
+        barColor = 'bg-emerald-500';
+        statusBadge = `
+          <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+            <i data-lucide="check-circle-2" class="w-3 h-3"></i> สำเร็จ (${item.rowCount.toLocaleString()} แถว)
+          </span>
+          ${item.detectedEncoding ? `<span class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${item.detectedEncoding}</span>` : ''}
+        `;
+        actionButtons = `
+          <button onclick="openPreview('${item.id}')" title="ดูตัวอย่างข้อมูล" class="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+          </button>
+          <button onclick="downloadSingleFile('${item.id}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>ดาวน์โหลด .XLSX</span>
+          </button>
+          <button onclick="removeFile('${item.id}')" title="ลบออกจากรายการ" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        `;
+      } else if (item.status === 'error') {
+        barColor = 'bg-rose-500';
+        statusBadge = `<span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-rose-50 text-rose-700"><i data-lucide="alert-circle" class="w-3 h-3"></i> ${item.errorMsg}</span>`;
+        actionButtons = `
+          <button onclick="convertAndDownloadOne('${item.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+            <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> ลองใหม่
+          </button>
+          <button onclick="removeFile('${item.id}')" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        `;
+      }
+
+      return `
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-start sm:items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-xl ${item.status === 'done' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'} flex items-center justify-center shrink-0">
+              <i data-lucide="${item.status === 'done' ? 'file-check-2' : 'file-text'}" class="w-5 h-5"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <p class="font-medium text-sm text-slate-800 truncate max-w-[200px] sm:max-w-md" title="${item.xlsxFileName}">${item.xlsxFileName}</p>
+                <button onclick="renameOutputFile('${item.id}')" title="เปลี่ยนชื่อไฟล์ปลายทาง" class="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors">
+                  <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                </button>
+                <span class="text-xs text-slate-400 font-mono">${formatBytes(item.size)}</span>
+              </div>
+              <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                ${statusBadge}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-1.5 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+            ${actionButtons}
+          </div>
+        </div>
+
+        <!-- Per-file mini progress bar -->
+        <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mt-3">
+          <div class="h-full ${barColor} transition-all duration-300" style="width: ${item.progress}%"></div>
+        </div>
+      `;
+    }
+
+    // Render Full File Queue
+    function renderQueue() {
+      updateOverallProgress();
+      fileListContainer.innerHTML = '';
+
+      state.files.forEach((item) => {
+        const card = document.createElement('div');
+        card.id = `file-card-${item.id}`;
+        card.className = 'bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs hover:border-slate-300 transition-all';
+        card.innerHTML = getFileCardHTML(item);
+        fileListContainer.appendChild(card);
+      });
+
+      lucide.createIcons({ root: fileListContainer });
+    }
+
+    // Update Individual File Card
+    function updateFileCardUI(item) {
+      const card = document.getElementById(`file-card-${item.id}`);
+      if (!card) return;
+      card.innerHTML = getFileCardHTML(item);
+      lucide.createIcons({ root: card });
+    }
+
+    // Helper for single-row convert button
+    window.convertAndDownloadOne = async function (id) {
+      const item = state.files.find((f) => f.id === id);
+      if (!item || state.isConverting) return;
+      await convertSingleFile(item);
+      updateOverallProgress();
+      if (item.status === 'done') {
+        showToast(`แปลงไฟล์ "${item.xlsxFileName}" สำเร็จ`, 'success');
+      }
+    };
+
+    window.downloadSingleFile = downloadSingleFile;
+    window.removeFile = removeFile;
+    window.openPreview = openPreview;
+
+    // ==========================================
+    // Drag & Drop + Clipboard Paste Events
+    // ==========================================
+    let dragCounter = 0;
+
+    function hasFiles(e) {
+      if (!e.dataTransfer) return false;
+      if (e.dataTransfer.types) {
+        return Array.from(e.dataTransfer.types).includes('Files');
+      }
+      return e.dataTransfer.files && e.dataTransfer.files.length > 0;
+    }
+
+    window.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!hasFiles(e)) return;
+      dragCounter++;
+      dropZone.classList.add('dropzone-active');
+      globalDropOverlay.classList.remove('hidden');
+    });
+
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dropZone.classList.remove('dropzone-active');
+        globalDropOverlay.classList.add('hidden');
+      }
+    });
+
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter = 0;
+      dropZone.classList.remove('dropzone-active');
+      globalDropOverlay.classList.add('hidden');
+
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        addFiles(e.dataTransfer.files);
+      }
+    });
+
+    // Support Ctrl+V pasting CSV files or raw CSV text
+    window.addEventListener('paste', (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+
+      const items = e.clipboardData?.files;
+      if (items && items.length > 0) {
+        addFiles(items);
+        return;
+      }
+
+      const pastedText = e.clipboardData?.getData('text/plain');
+      if (pastedText && pastedText.trim().length > 0 && (pastedText.includes(',') || pastedText.includes('\t') || pastedText.includes(';'))) {
+        const timestamp = new Date().toTimeString().slice(0, 5).replace(':', '-');
+        const virtualFile = new File([pastedText], `Pasted_Data_${timestamp}.csv`, { type: 'text/csv' });
+        addFiles([virtualFile]);
+      }
+    });
+
+    // Click & Keyboard accessibility on DropZone
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        addFiles(e.target.files);
+        fileInput.value = '';
+      }
+    });
+
+    // Action Buttons
+    convertAllBtn.addEventListener('click', convertAllFiles);
+    downloadZipBtn.addEventListener('click', downloadAllAsZip);
+    clearAllBtn.addEventListener('click', () => {
+      if (state.isConverting) return;
+      state.files = [];
+      renderQueue();
+      showToast('ล้างรายการไฟล์ทั้งหมดแล้ว', 'info');
+    });
+
+    // Preview Modal Controls
+    closePreviewModal.addEventListener('click', () => previewModal.classList.add('hidden'));
+    closePreviewModalBtn.addEventListener('click', () => previewModal.classList.add('hidden'));
+    previewModal.addEventListener('click', (e) => {
+      if (e.target === previewModal) previewModal.classList.add('hidden');
+    });
+
+    modalEncodingOverride.addEventListener('change', (e) => {
+      if (state.previewFileId) {
+        openPreview(state.previewFileId, e.target.value);
+      }
+    });
+
+    // Mark files as pending when conversion settings change
+    [encodingSelect, delimiterSelect, sheetNameInput, preserveZerosCheck, autoWidthCheck, freezeHeaderCheck].forEach((el) => {
+      el.addEventListener('change', () => {
+        if (state.files.some((f) => f.status === 'done')) {
+          state.files.forEach((f) => {
+            if (f.status === 'done') {
+              f.status = 'pending';
+              f.progress = 0;
+            }
+          });
+          renderQueue();
+          showToast('อัปเดตการตั้งค่าแล้ว กด "แปลงไฟล์ทั้งหมด" เพื่อใช้ค่าใหม่', 'info');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
